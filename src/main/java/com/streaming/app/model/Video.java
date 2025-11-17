@@ -1,10 +1,11 @@
 package com.streaming.app.model;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name="videos")
@@ -31,6 +32,10 @@ public class Video {
 
     @Enumerated(EnumType.STRING)
     private VideoStatus status;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "video_variants", joinColumns = @JoinColumn(name = "video_id"))
+    private List<VideoVariant> variants = new ArrayList<>();
 
     private LocalDateTime uploadedAt;
 

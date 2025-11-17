@@ -24,8 +24,7 @@ public class VideoRetrievalController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-
-    // 3. Fetch videos by status (optional)
+    // 2. Fetch videos by status (optional)
     @GetMapping("/status/{status}")
     public ResponseEntity<List<Video>> getVideosByStatus(@PathVariable String status) {
         VideoStatus videoStatus = VideoStatus.valueOf(status.toUpperCase());

@@ -1,14 +1,12 @@
 package com.streaming.app.controller;
 
+import com.streaming.app.service.SqsMessageProducer;
 import com.streaming.app.model.Video;
 import com.streaming.app.service.S3Service;
 import com.streaming.app.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -22,13 +20,18 @@ public class videoUploadController {
     @Autowired
     private VideoService videoService;
 
+    @Autowired
+    private SqsMessageProducer sqsMessageProducer;
+
+
+    // Endpoint to get presigned upload URL
     @PostMapping("/upload-url")
     public ResponseEntity<Map<String,String>> getUploadUrl(@RequestBody Map<String,String> request)
     {
         String fileName= request.get("fileName");
         String contentType= request.get("contentType");
 
-        String s3Key = s3Service.generateS3Key(fileName);
+        String s3Key = s3Service.generateRawVideoKey(fileName);
         String presignedUrl = s3Service.generatePresignedUrl(s3Key, contentType);
 
         Video video = videoService.saveUploadedVideo(fileName, s3Key, contentType);
@@ -39,6 +42,28 @@ public class videoUploadController {
                 "videoId", video.getId().toString()
         );
         return ResponseEntity.ok(response);
+    }
+
+    // Endpoint to handle upload completion notification
+    @PostMapping("/videos/uploaded")
+    public ResponseEntity<String> onUploadComplete(
+            @RequestBody Map<String, Object> event) {
+
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        Map<String, Object> bucket = (Map<String, Object>) detail.get("bucket");
+        Map<String, Object> object = (Map<String, Object>) detail.get("object");
+
+        String bucketName = bucket.get("name").toString();
+        String s3Key = object.get("key").toString();
+
+        // Extract videoId from s3Key using your naming convention
+        // example key: raw-videos/{uuid}-{fileName}
+        Long videoId = videoService.resolveVideoIdFromS3Key(s3Key);
+
+        videoService.markQueued(videoId);
+        sqsMessageProducer.sendVideoForProcessing(videoId, s3Key);
+
+        return ResponseEntity.ok("Video queued for processing.");
     }
 
 

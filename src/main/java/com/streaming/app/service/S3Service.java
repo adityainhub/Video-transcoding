@@ -22,16 +22,17 @@ public class S3Service {
     private S3Client s3Client;
     private S3Presigner s3Presigner;
 
-    @Value("${aws.s3.bucketName}")
-    private String bucketName;
+    @Value("${aws.s3.rawBucket}")
+    private String rawBucketName;          // renamed ✔️
+
+    @Value("${aws.s3.processedBucket}")
+    private String processedBucketName;    // new ✔️
 
     @Value("${aws.region}")
     private String region;
 
-
     @PostConstruct
-    public void init()
-    {
+    public void init() {
         this.s3Client = S3Client.builder()
                 .region(Region.of(region))
                 .credentialsProvider(DefaultCredentialsProvider.create())
@@ -43,34 +44,43 @@ public class S3Service {
                 .build();
     }
 
-    public String generatePresignedUrl(String s3key, String contentType) {
+    // Generate presigned URL for RAW uploads
+    public String generatePresignedUrl(String s3Key, String contentType) {
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3key)
+                .bucket(rawBucketName)        // uses RAW bucket ✔️
+                .key(s3Key)
                 .contentType(contentType)
                 .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(15)) // 15 minutes expiration
+                .signatureDuration(Duration.ofMinutes(30))
                 .putObjectRequest(putObjectRequest)
                 .build();
 
-        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+        PresignedPutObjectRequest presignedRequest =
+                s3Presigner.presignPutObject(presignRequest);
 
         return presignedRequest.url().toString();
     }
 
-    public String generateS3Key(String fileName) {
+    // Generate RAW bucket key
+    public String generateRawVideoKey(String fileName) {
         return "raw-videos/" + UUID.randomUUID() + "-" + fileName;
     }
 
+    // Generate PROCESSED bucket key (for backend usage if needed)
+    public String generateProcessedKey(Long videoId, String quality) {
+        return "processed-videos/" + videoId + "/" + quality + ".mp4";
+    }
+
+
+    // Delete from bucket
     public void deleteFile(String s3Key) {
         DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(processedBucketName)
                 .key(s3Key)
                 .build();
-
         s3Client.deleteObject(deleteRequest);
     }
 
@@ -79,5 +89,4 @@ public class S3Service {
         if (s3Client != null) s3Client.close();
         if (s3Presigner != null) s3Presigner.close();
     }
-
 }

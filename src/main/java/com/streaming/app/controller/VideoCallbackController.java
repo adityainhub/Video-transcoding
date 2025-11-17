@@ -1,6 +1,8 @@
 package com.streaming.app.controller;
 
 import com.streaming.app.dto.TranscodeResultDTO;
+import com.streaming.app.model.Video;
+import com.streaming.app.model.VideoStatus;
 import com.streaming.app.service.VideoService;
 import com.streaming.app.util.ResponseMessages;
 import jakarta.validation.Valid;
@@ -30,6 +32,17 @@ public class VideoCallbackController {
         videoService.saveTranscodedVariants(results);
         System.out.println("[VideoCallbackController] Video " + id + " marked as PROCESSED");
         return ResponseEntity.ok(String.format(ResponseMessages.VIDEO_PROCESSED_FORMAT, id));
+    }
+
+    // Mark video as PROCESSING
+    @PostMapping("/{videoId}/processing")
+    public ResponseEntity<Void> markProcessing(@PathVariable Long videoId) {
+        System.out.println("[VideoController] POST /api/videos/" + videoId + "/processing - Marking video as processing");
+
+        videoService.markAsProcessing(videoId);
+
+        System.out.println("[VideoController] Video " + videoId + " status updated to PROCESSING");
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{id}/failed")

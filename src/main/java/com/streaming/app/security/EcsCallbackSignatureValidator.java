@@ -17,7 +17,7 @@ public class EcsCallbackSignatureValidator {
     @Value("${ecs.callback.secret}")
     private String secret;
 
-    @Value("${ecs.callback.max-skew-ms:300000}") // 5 min
+    @Value("${ecs.callback.maxSkewMs:300000}") // 5 min
     private long allowedSkewMs;
 
     /**

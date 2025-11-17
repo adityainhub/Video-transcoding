@@ -18,6 +18,7 @@ public class SqsMessageProducer {
     private String queueUrl;
 
     public void sendVideoForProcessing(Long videoId, String s3Key) {
+        System.out.println("[SqsMessageProducer] sendVideoForProcessing - videoId: " + videoId + ", s3Key: " + s3Key);
         String messageBody = String.format("{\"videoId\": %d, \"s3Key\": \"%s\"}", videoId, s3Key);
 
         SendMessageRequest request = SendMessageRequest.builder()
@@ -26,6 +27,6 @@ public class SqsMessageProducer {
                 .build();
 
         sqsClient.sendMessage(request);
-        System.out.println("SQS message sent → " + messageBody);
+        System.out.println("[SqsMessageProducer] SQS message sent → " + messageBody);
     }
 }

@@ -47,6 +47,7 @@ public class S3Service {
     // Generate presigned URL for RAW uploads
     public String generatePresignedUrl(String s3Key, String contentType) {
 
+        System.out.println("[S3Service] generatePresignedUrl - s3Key: " + s3Key + ", contentType: " + contentType);
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(rawBucketName)        // uses RAW bucket ✔️
                 .key(s3Key)
@@ -61,12 +62,16 @@ public class S3Service {
         PresignedPutObjectRequest presignedRequest =
                 s3Presigner.presignPutObject(presignRequest);
 
-        return presignedRequest.url().toString();
+        String url = presignedRequest.url().toString();
+        System.out.println("[S3Service] Presigned URL generated: " + url);
+        return url;
     }
 
     // Generate RAW bucket key
     public String generateRawVideoKey(String fileName) {
-        return "raw-videos/" + UUID.randomUUID() + "-" + fileName;
+        String key = "raw-videos/" + UUID.randomUUID() + "-" + fileName;
+        System.out.println("[S3Service] generateRawVideoKey - fileName: " + fileName + ", key: " + key);
+        return key;
     }
 
     // Generate PROCESSED bucket key (for backend usage if needed)
@@ -77,11 +82,13 @@ public class S3Service {
 
     // Delete from bucket
     public void deleteFile(String s3Key) {
+        System.out.println("[S3Service] deleteFile - s3Key: " + s3Key + ", bucket: " + processedBucketName);
         DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                 .bucket(processedBucketName)
                 .key(s3Key)
                 .build();
         s3Client.deleteObject(deleteRequest);
+        System.out.println("[S3Service] File deleted successfully: " + s3Key);
     }
 
     @PreDestroy

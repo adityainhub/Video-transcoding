@@ -15,7 +15,9 @@ public class videoDeleteController {
     @DeleteMapping("/delete")
     public ResponseEntity<String> deleteVideo(@RequestParam String s3Key)
     {
+        System.out.println("[videoDeleteController] DELETE /delete - Deleting file: " + s3Key);
         s3Service.deleteFile(s3Key);
+        System.out.println("[videoDeleteController] File deleted successfully: " + s3Key);
         return ResponseEntity.ok(" File Successfully deleted " + s3Key);
     }
 }

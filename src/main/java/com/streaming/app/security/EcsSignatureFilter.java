@@ -27,9 +27,13 @@ public class EcsSignatureFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Only validate ECS callbacks under /api/videos
+        // Only validate ECS callbacks under /api/videos and only for POST requests
         String path = request.getRequestURI();
-        if (!path.startsWith("/api/videos")) {
+        String method = request.getMethod();
+        
+        System.out.println("[EcsSignatureFilter] Request: " + method + " " + path);
+        if (!path.startsWith("/api/videos") || !"POST".equalsIgnoreCase(method)) {
+            System.out.println("[EcsSignatureFilter] Bypassing signature validation (not POST to /api/videos)");
             filterChain.doFilter(request, response);
             return;
         }
@@ -45,7 +49,9 @@ public class EcsSignatureFilter extends OncePerRequestFilter {
         String signature = request.getHeader("X-ECS-Signature");
         String timestamp = request.getHeader("X-ECS-Timestamp");
 
+        System.out.println("[EcsSignatureFilter] Validating signature - timestamp: " + timestamp);
         if (signature == null || timestamp == null) {
+            System.out.println("[EcsSignatureFilter] ERROR: Missing signature headers");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write(ResponseMessages.MISSING_SIGNATURE_HEADERS);
             return;
@@ -53,11 +59,14 @@ public class EcsSignatureFilter extends OncePerRequestFilter {
 
         try {
             ecsCallbackSignatureValidator.verify(body, signature, timestamp);
+            System.out.println("[EcsSignatureFilter] Signature validation passed");
         } catch (com.streaming.app.security.InvalidSignatureException ex) {
+            System.out.println("[EcsSignatureFilter] ERROR: Invalid signature - " + ex.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write(ResponseMessages.INVALID_SIGNATURE);
             return;
         } catch (Exception ex) {
+            System.out.println("[EcsSignatureFilter] ERROR: Signature validation exception - " + ex.getMessage());
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.getWriter().write(ResponseMessages.SIGNATURE_VALIDATION_FAILED + ex.getMessage());
             return;

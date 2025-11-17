@@ -25,7 +25,9 @@ public class EcsCallbackSignatureValidator {
      */
     public void verify(String rawBody, String providedSignature, String timestampHeader) {
 
+        System.out.println("[EcsCallbackSignatureValidator] verify - timestamp: " + timestampHeader);
         if (timestampHeader == null || providedSignature == null) {
+            System.out.println("[EcsCallbackSignatureValidator] ERROR: Missing signature headers");
             throw new InvalidSignatureException("Missing ECS signature headers");
         }
 
@@ -38,14 +40,17 @@ public class EcsCallbackSignatureValidator {
 
         long now = Instant.now().toEpochMilli();
         if (Math.abs(now - timestamp) > allowedSkewMs) {
+            System.out.println("[EcsCallbackSignatureValidator] ERROR: Timestamp out of range - now: " + now + ", timestamp: " + timestamp);
             throw new InvalidSignatureException("Timestamp too old or too new");
         }
 
         String expectedSig = generateSignature(timestampHeader, rawBody);
 
         if (!constantTimeEquals(expectedSig, providedSignature)) {
+            System.out.println("[EcsCallbackSignatureValidator] ERROR: Signature mismatch");
             throw new InvalidSignatureException("Invalid ECS signature");
         }
+        System.out.println("[EcsCallbackSignatureValidator] Signature verified successfully");
     }
 
     private String generateSignature(String timestamp, String body) {

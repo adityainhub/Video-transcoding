@@ -6,7 +6,6 @@ import com.streaming.app.model.VideoStatus;
 import com.streaming.app.model.VideoVariant;
 import com.streaming.app.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -19,14 +18,12 @@ import java.util.stream.Collectors;
 public class VideoService {
 
     private final VideoRepository videoRepository;
-
-    @Value("${aws.s3.publicBaseUrl}")
-    private String publicBaseUrl;
+    private final S3Service s3Service;
 
     // Save metadata when upload URL is generated
     public Video saveUploadedVideo(String fileName, String s3Key, String contentType) {
-
         System.out.println("[VideoService] saveUploadedVideo - fileName: " + fileName + ", s3Key: " + s3Key);
+
         Video video = Video.builder()
                 .fileName(fileName)
                 .s3Key(s3Key)
@@ -74,15 +71,16 @@ public class VideoService {
 
     // Save transcoded variants after processing
     public void saveTranscodedVariants(TranscodeResultDTO dto) {
+        System.out.println("[VideoService] saveTranscodedVariants - videoId: " + dto.getVideoId() +
+                ", variants: " + dto.getVariants().size());
 
-        System.out.println("[VideoService] saveTranscodedVariants - videoId: " + dto.getVideoId() + ", variants: " + dto.getVariants().size());
         videoRepository.findById(dto.getVideoId()).ifPresent(video -> {
 
+            // Map DTO variants to entity variants (store only s3Key, not URL)
             List<VideoVariant> variants = dto.getVariants().stream()
                     .map(v -> new VideoVariant(
                             v.getQuality(),
-                            v.getS3Key(),
-                            buildPublicUrl(v.getS3Key()),
+                            v.getS3Key(),  // Store S3 key for future reference
                             v.getContentType() != null ? v.getContentType() : video.getContentType()
                     ))
                     .collect(Collectors.toList());
@@ -91,16 +89,27 @@ public class VideoService {
             video.setStatus(VideoStatus.PROCESSED);
             video.setProcessedAt(LocalDateTime.now());
 
-            videoRepository.save(video);
-            System.out.println("[VideoService] Video " + video.getId() + " saved with " + variants.size() + " variants, status: PROCESSED");
-        });
-    }
+            // Update video's s3Key to processed bucket base path
+            String previousRawKey = video.getS3Key();
+            String processedBaseKey = "processed-videos/" + video.getId() + "/";
+            video.setS3Key(processedBaseKey);
 
-    // Generate public URL from s3Key
-    private String buildPublicUrl(String s3Key) {
-        // Ensures base URL ends with /
-        String base = publicBaseUrl.endsWith("/") ? publicBaseUrl : publicBaseUrl + "/";
-        return base + s3Key;
+            // Delete raw video from S3 to save storage
+            if (previousRawKey != null && !previousRawKey.startsWith("processed-videos/")) {
+                try {
+                    System.out.println("[VideoService] Deleting raw S3 object: " + previousRawKey);
+                    s3Service.deleteRawFile(previousRawKey);
+                } catch (Exception ex) {
+                    // Log and continue; deletion failure should not block DB update
+                    System.err.println("[VideoService] Failed to delete raw S3 object '" +
+                            previousRawKey + "': " + ex.getMessage());
+                }
+            }
+
+            videoRepository.save(video);
+            System.out.println("[VideoService] Video " + video.getId() + " saved with " +
+                    variants.size() + " variants, status: PROCESSED");
+        });
     }
 
     public void markAsFailed(Long videoId) {
@@ -113,18 +122,18 @@ public class VideoService {
     }
 
     public Long resolveVideoIdFromS3Key(String s3Key) {
-
         System.out.println("[VideoService] resolveVideoIdFromS3Key - s3Key: " + s3Key);
-        // Example: "raw-videos/UUID-test.mp4"
+
+        // Validate s3Key format
         if (s3Key == null || !s3Key.contains("/")) {
             System.out.println("[VideoService] ERROR: Invalid S3 key format: " + s3Key);
             throw new IllegalArgumentException("Invalid S3 key format: " + s3Key);
         }
 
-        // Extract "UUID-test.mp4"
+        // Extract filename part: "raw-videos/UUID-test.mp4" → "UUID-test.mp4"
         String fileNamePart = s3Key.substring(s3Key.lastIndexOf("/") + 1);
 
-        // Extract original filename ("test.mp4")
+        // Extract original filename: "UUID-test.mp4" → "test.mp4"
         int dashIndex = fileNamePart.indexOf("-");
         if (dashIndex == -1) {
             throw new IllegalArgumentException("S3 key does not contain expected UUID prefix: " + s3Key);
@@ -132,14 +141,14 @@ public class VideoService {
 
         String originalFileName = fileNamePart.substring(dashIndex + 1);
 
-        // Option 1: direct lookup by exact s3Key
+        // Try lookup by exact s3Key first
         Optional<Video> byS3Key = videoRepository.findByS3Key(s3Key);
         if (byS3Key.isPresent()) {
             System.out.println("[VideoService] Video found by s3Key: " + byS3Key.get().getId());
             return byS3Key.get().getId();
         }
 
-        // Option 2: lookup by original file name (fallback)
+        // Fallback: lookup by original file name
         Optional<Video> byFileName = videoRepository.findByFileName(originalFileName);
         if (byFileName.isPresent()) {
             System.out.println("[VideoService] Video found by fileName: " + byFileName.get().getId());

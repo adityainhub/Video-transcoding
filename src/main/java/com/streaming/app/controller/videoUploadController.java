@@ -66,19 +66,17 @@ public class videoUploadController {
             String s3Key = object.get("key").toString();
             System.out.println("[videoUploadController] bucketName: " + bucketName + ", s3Key: " + s3Key);
 
-            // Extract videoId from s3Key using your naming convention
             Long videoId;
             try {
                 videoId = videoService.resolveVideoIdFromS3Key(s3Key);
                 System.out.println("[videoUploadController] Resolved videoId: " + videoId);
             } catch (IllegalArgumentException e) {
-                // S3 key doesn't match expected format (e.g., test uploads without ID)
+
                 System.out.println("[videoUploadController] Skipping file with invalid format: " + s3Key + " - " + e.getMessage());
-                // Return 200 to prevent EventBridge retry
+
                 return ResponseEntity.ok("Skipped: Invalid S3 key format");
             }
 
-            // Check if video already processed to avoid duplicate processing
             Optional<Video> existingVideo = videoService.getVideoById(videoId);
             if (existingVideo.isPresent()) {
                 Video video = existingVideo.get();
@@ -97,12 +95,10 @@ public class videoUploadController {
             return ResponseEntity.ok("Video queued for processing.");
             
         } catch (Exception e) {
-            // Log error but return 200 to prevent EventBridge retry for non-recoverable errors
+
             System.err.println("[videoUploadController] Error processing upload event: " + e.getMessage());
             e.printStackTrace();
-            
-            // Only return 500 for recoverable errors (e.g., temporary DB unavailability)
-            // For invalid data/format errors, return 200 to stop retries
+
             if (isRecoverableError(e)) {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body("Temporary error, will retry");

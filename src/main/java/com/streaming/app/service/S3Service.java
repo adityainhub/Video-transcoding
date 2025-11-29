@@ -8,8 +8,11 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -67,6 +70,7 @@ public class S3Service {
         return url;
     }
 
+
     // Generate RAW bucket key
     public String generateRawVideoKey(String fileName) {
         String key = "raw-videos/" + UUID.randomUUID() + "-" + fileName;
@@ -79,8 +83,32 @@ public class S3Service {
         return "processed-videos/" + videoId + "/" + quality + ".mp4";
     }
 
+    public String generatePresignedDownloadUrl(String s3Key, int expirationSeconds) {
+        System.out.println("[S3Service] generatePresignedDownloadUrl - s3Key: " + s3Key +
+                ", expiration: " + expirationSeconds + "s");
 
-    // Delete from bucket
+        GetObjectRequest getObjectRequest =
+                GetObjectRequest.builder()
+                        .bucket(processedBucketName)  // Use processed bucket
+                        .key(s3Key)
+                        .build();
+
+        GetObjectPresignRequest presignRequest =
+                GetObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofSeconds(expirationSeconds))
+                        .getObjectRequest(getObjectRequest)
+                        .build();
+
+        PresignedGetObjectRequest presignedRequest =
+                s3Presigner.presignGetObject(presignRequest);
+
+        String url = presignedRequest.url().toString();
+        System.out.println("[S3Service] Presigned download URL generated: " + url);
+        return url;
+    }
+
+
+    // Delete from processed bucket
     public void deleteFile(String s3Key) {
         System.out.println("[S3Service] deleteFile - s3Key: " + s3Key + ", bucket: " + processedBucketName);
         DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
@@ -89,6 +117,17 @@ public class S3Service {
                 .build();
         s3Client.deleteObject(deleteRequest);
         System.out.println("[S3Service] File deleted successfully: " + s3Key);
+    }
+
+    // Delete from raw bucket (used to clean up after processing)
+    public void deleteRawFile(String s3Key) {
+        System.out.println("[S3Service] deleteRawFile - s3Key: " + s3Key + ", bucket: " + rawBucketName);
+        DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                .bucket(rawBucketName)
+                .key(s3Key)
+                .build();
+        s3Client.deleteObject(deleteRequest);
+        System.out.println("[S3Service] Raw file deleted successfully: " + s3Key);
     }
 
     @PreDestroy

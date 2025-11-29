@@ -12,6 +12,5 @@ import lombok.NoArgsConstructor;
 public class VideoVariant {
     private String quality;
     private String s3Key;
-    private String url;
     private String contentType;
 }

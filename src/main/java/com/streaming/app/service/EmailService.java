@@ -7,7 +7,6 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-
 @Service
 public class EmailService {
 
@@ -17,7 +16,8 @@ public class EmailService {
     @Value("${app.email.support:support@fluxmedia.in}")
     private String supportEmail;
 
-    @Value("${app.email.from:noreply@fluxmedia.in}")
+    // FROM must be same as authenticated SMTP user for GoDaddy
+    @Value("${spring.mail.username}")
     private String fromEmail;
 
     public void sendContactFormEmail(ContactForm form) {
@@ -26,8 +26,12 @@ public class EmailService {
 
             message.setTo(supportEmail);
             message.setSubject("New Contact Form Submission - fluxmedia");
+
+            // GoDaddy requires FROM == authenticated mailbox
             message.setFrom(fromEmail);
-            message.setReplyTo(form.getEmail()); // User can reply directly
+
+            // Reply-to should be user's email
+            message.setReplyTo(form.getEmail());
 
             String emailBody = String.format("""
                 New contact form submission from fluxmedia website:
@@ -47,8 +51,8 @@ public class EmailService {
             );
 
             message.setText(emailBody);
-
             mailSender.send(message);
+
             System.out.println("Contact form email sent successfully from: " + form.getEmail());
 
         } catch (Exception e) {
@@ -63,12 +67,14 @@ public class EmailService {
 
             message.setTo(form.getEmail());
             message.setSubject("We received your message - fluxmedia");
+
+            // FROM must still match authenticated mailbox
             message.setFrom(fromEmail);
 
             String emailBody = String.format("""
                 Hi %s,
                 
-                Thank you for contacting fluxmedia! We have received your message and will get back to you within 24-48 hours.
+                Thank you for contacting fluxmedia! We have received your message and will get back to you soon.
                 
                 Your message:
                 %s
@@ -84,14 +90,13 @@ public class EmailService {
             );
 
             message.setText(emailBody);
-
             mailSender.send(message);
 
             System.out.println("Confirmation email sent successfully to: " + form.getEmail());
 
         } catch (Exception e) {
             System.out.println("Failed to send confirmation email to: " + form.getEmail());
-            // Don't throw exception - confirmation email is optional
+            // confirmation email is optional, no need to throw
         }
     }
 }

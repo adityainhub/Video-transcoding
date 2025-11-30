@@ -108,7 +108,6 @@ public class videoUploadController {
         }
     }
 
-    // Helper method to determine if error is recoverable
     private boolean isRecoverableError(Exception e) {
         // Examples of recoverable errors that should trigger retry:
         // - Database connection timeout
